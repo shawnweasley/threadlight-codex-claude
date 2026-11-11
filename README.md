@@ -1,10 +1,12 @@
 ![Threadlight 图标](Assets/app-icon.png)
 
-# Threadlight · 对话灯
+# Threadlight · 对话灯｜Codex / Claude Code 菜单栏状态监控
 
 在 macOS 菜单栏，随时查看 Codex 和 Claude Code 对话的运行状态。
 
-**[下载 DMG（Apple 芯片）](https://github.com/shawnweasley/threadlight/releases/download/v0.1.1/Threadlight-0.1.1-macOS-arm64.dmg)** · [版本说明](https://github.com/shawnweasley/threadlight/releases/tag/v0.1.1)
+A lightweight macOS menu bar monitor for Codex and Claude Code sessions. Track running tasks and unread completions, with a pinnable task list and optional launch at login. Runs locally without network requests or telemetry.
+
+**[下载 DMG（Apple 芯片）](https://github.com/shawnweasley/threadlight-codex-claude/releases/download/v0.1.1/Threadlight-0.1.1-macOS-arm64.dmg)** · [版本说明](https://github.com/shawnweasley/threadlight-codex-claude/releases/tag/v0.1.1)
 
 ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple)
 ![Swift 6](https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white)
@@ -38,7 +40,7 @@ Claude 仅支持桌面端 **Code** 会话。
 
 需要 **macOS 13+**。当前 DMG 为 **Apple 芯片版**。
 
-1. [下载 DMG 安装包](https://github.com/shawnweasley/threadlight/releases/download/v0.1.1/Threadlight-0.1.1-macOS-arm64.dmg)，将应用拖入「应用程序」。
+1. [下载 DMG 安装包](https://github.com/shawnweasley/threadlight-codex-claude/releases/download/v0.1.1/Threadlight-0.1.1-macOS-arm64.dmg)，将应用拖入「应用程序」。
 2. 启动「对话灯」，从菜单栏查看任务，或选择「固定列表」。
 
 当前为预览版，采用本地签名，尚未经过 Apple 公证。
