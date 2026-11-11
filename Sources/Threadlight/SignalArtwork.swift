@@ -13,7 +13,11 @@ enum SignalArtwork {
     static var hasPackagedArtwork: Bool { packagedLogo.flatMap(NSImage.init(contentsOf:)) != nil }
     private static let logo: NSImage? = {
         if Bundle.main.bundleURL.pathExtension == "app" { return packagedLogo.flatMap(NSImage.init(contentsOf:)) }
-        return Bundle.module.url(forResource: "codex", withExtension: "svg").flatMap(NSImage.init(contentsOf:))
+        // SwiftPM puts resources beside the development executable. Resolve
+        // them at runtime so distributed binaries contain no build-machine path.
+        let resource = Bundle.main.executableURL?.deletingLastPathComponent()
+            .appendingPathComponent("Threadlight_Threadlight.bundle/codex.svg")
+        return resource.flatMap(NSImage.init(contentsOf:))
     }()
 
     static func emblem(in rect: NSRect, ink: NSColor) {

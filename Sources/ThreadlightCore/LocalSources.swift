@@ -101,7 +101,9 @@ enum ThreadDatabase {
         sqlite3_finalize(pragma)
         guard columns.isSuperset(of: ["id", "rollout_path", "title", "updated_at", "archived", "originator"]) else { throw SourceError.schema }
         let name = columns.contains("name") ? "COALESCE(NULLIF(name,''),title)" : "title"
-        let sourceFilter = columns.contains("thread_source") ? " AND (thread_source='user' OR thread_source IS NULL)" : ""
+        // An agent-created chat is an independent desktop conversation, unlike
+        // an internal subagent. Filter before LIMIT so children cannot crowd out chats.
+        let sourceFilter = columns.contains("thread_source") ? " AND (thread_source IN ('user','agent_created_thread') OR thread_source IS NULL)" : ""
         let ids = Array(watched).sorted()
         let placeholders = Array(repeating: "?", count: ids.count).joined(separator: ",")
         let tracked = ids.isEmpty ? "" : " OR id IN (\(placeholders))"

@@ -7,6 +7,7 @@ import Testing
     @objc func open(_ sender: NSMenuItem) {}
     @objc func pin() {}
     @objc func quit() {}
+    @objc func login() {}
 }
 
 @Suite @MainActor struct SurfaceTests {
@@ -19,18 +20,32 @@ import Testing
     @Test func menuPollingKeepsFooterAndRowsUnderPointer() {
         _ = NSApplication.shared
         let surface = StableMenu(), target = Actions(), rows = rows()
-        surface.open(rows: rows, pinned: true, target: target, rowAction: #selector(Actions.open(_:)), pinAction: #selector(Actions.pin), quitAction: #selector(Actions.quit))
+        surface.open(rows: rows, pinned: true, loginStatus: .disabled, target: target, rowAction: #selector(Actions.open(_:)), pinAction: #selector(Actions.pin), loginAction: #selector(Actions.login), quitAction: #selector(Actions.quit))
         let items = surface.menu.items
+        let loginItem = surface.menu.items.first { $0.title == "允许开机自启动" }
+        #expect(loginItem?.state == .off)
+        #expect(loginItem?.action == #selector(Actions.login))
+        #expect(surface.menu.showsStateColumn)
         surface.beginTracking()
         for _ in 0..<20 {
             surface.update(rows: [], pinned: true)
-            surface.open(rows: [], pinned: true, target: target, rowAction: #selector(Actions.open(_:)), pinAction: #selector(Actions.pin), quitAction: #selector(Actions.quit))
+            surface.updateLoginStatus(.enabled)
+            let marker = SignalArtwork.mark(.finished, frame: 0, dark: false)
+            surface.updateTaskMarker(rows[0].id, image: marker)
+            #expect(surface.taskItems[rows[0].id]?.offStateImage === marker)
+            #expect(surface.taskItems[rows[0].id]?.state == .off)
+            #expect(surface.menu.items.allSatisfy { $0.image == nil })
+            surface.open(rows: [], pinned: true, loginStatus: .disabled, target: target, rowAction: #selector(Actions.open(_:)), pinAction: #selector(Actions.pin), loginAction: #selector(Actions.login), quitAction: #selector(Actions.quit))
         }
         #expect(surface.menu.items.elementsEqual(items, by: { $0 === $1 }))
+        #expect(loginItem?.state == .on)
+        surface.updateLoginStatus(.requiresApproval)
+        #expect(loginItem?.state == .mixed)
         #expect(surface.taskItems[rows[0].id]?.title.hasSuffix("已完成") == true)
         surface.endTracking()
-        surface.open(rows: [], pinned: true, target: target, rowAction: #selector(Actions.open(_:)), pinAction: #selector(Actions.pin), quitAction: #selector(Actions.quit))
+        surface.open(rows: [], pinned: true, loginStatus: .disabled, target: target, rowAction: #selector(Actions.open(_:)), pinAction: #selector(Actions.pin), loginAction: #selector(Actions.login), quitAction: #selector(Actions.quit))
         #expect(surface.taskItems.isEmpty)
+        #expect(surface.menu.items.first { $0.title == "允许开机自启动" }?.state == .off)
     }
 
     @Test func listHidesRightTextOnNarrowWidthsAndRestoresWithoutOverlap() {

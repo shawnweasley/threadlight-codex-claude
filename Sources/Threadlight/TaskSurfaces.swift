@@ -7,9 +7,27 @@ final class StableMenu {
     private var snapshot: [DisplayRow] = []
     private var summary: NSMenuItem?
     private var pin: NSMenuItem?
+    private var loginItem: NSMenuItem?
     private var tracking = false
 
-    func open(rows: [DisplayRow], pinned: Bool, target: AnyObject, rowAction: Selector, pinAction: Selector, quitAction: Selector) {
+    init() {
+        // Use only AppKit's state column. Hiding it does not reliably suppress
+        // native checkmarks on every macOS version, so never duplicate them in image.
+        menu.showsStateColumn = true
+    }
+
+    private func setCheckmark(_ item: NSMenuItem?, state: NSControl.StateValue) {
+        item?.state = state
+        item?.image = nil
+    }
+
+    func updateTaskMarker(_ id: ChatID, image: NSImage?) {
+        // A task is an action, not a checked preference. Its off-state image
+        // occupies the same native column as preference checkmarks.
+        taskItems[id]?.offStateImage = image
+    }
+
+    func open(rows: [DisplayRow], pinned: Bool, loginStatus: LoginItemStatus, target: AnyObject, rowAction: Selector, pinAction: Selector, loginAction: Selector, quitAction: Selector) {
         guard !tracking else { return }
         menu.removeAllItems(); taskItems.removeAll(); snapshot = rows
         let summary = NSMenuItem(title: summaryText(rows), action: nil, keyEquivalent: "")
@@ -26,21 +44,37 @@ final class StableMenu {
         }
         menu.addItem(.separator())
         let pin = NSMenuItem(title: pinned ? "取消固定列表" : "固定列表", action: pinAction, keyEquivalent: "")
-        pin.target = target; pin.state = pinned ? .on : .off
-        pin.image = NSImage(systemSymbolName: "pin", accessibilityDescription: nil)
+        pin.target = target; setCheckmark(pin, state: pinned ? .on : .off)
         menu.addItem(pin); self.pin = pin
+        let loginItem = NSMenuItem(title: "允许开机自启动", action: loginAction, keyEquivalent: "")
+        loginItem.target = target; menu.addItem(loginItem); self.loginItem = loginItem
+        updateLoginStatus(loginStatus)
         let quit = NSMenuItem(title: "退出对话灯", action: quitAction, keyEquivalent: "q")
         quit.target = target; menu.addItem(quit)
     }
     func beginTracking() { tracking = true }
     func endTracking() { tracking = false }
 
+    func updateLoginStatus(_ status: LoginItemStatus) {
+        switch status {
+        case .enabled:
+            setCheckmark(loginItem, state: .on)
+            loginItem?.toolTip = "登录 Mac 时自动启动对话灯"
+        case .requiresApproval:
+            setCheckmark(loginItem, state: .mixed)
+            loginItem?.toolTip = "等待在系统设置的登录项中允许；再次点击可取消"
+        case .disabled, .unavailable:
+            setCheckmark(loginItem, state: .off)
+            loginItem?.toolTip = "登录 Mac 时自动启动对话灯"
+        }
+    }
+
     func update(rows: [DisplayRow], pinned: Bool) {
         let text = summaryText(rows)
         if summary?.title != text { summary?.title = text }
         let pinTitle = pinned ? "取消固定列表" : "固定列表"
         if pin?.title != pinTitle { pin?.title = pinTitle }
-        pin?.state = pinned ? .on : .off
+        setCheckmark(pin, state: pinned ? .on : .off)
         for prior in snapshot {
             guard let item = taskItems[prior.id] else { continue }
             if let row = rows.first(where: { $0.id == prior.id }) {

@@ -4,7 +4,7 @@
 
 在 macOS 菜单栏，随时查看 Codex 和 Claude Code 对话的运行状态。
 
-**[下载 DMG（Apple 芯片）](https://github.com/shawnweasley/threadlight/releases/download/v0.1.0/Threadlight-0.1.0-macOS-arm64.dmg)** · [版本说明](https://github.com/shawnweasley/threadlight/releases/tag/v0.1.0)
+**[下载 DMG（Apple 芯片）](https://github.com/shawnweasley/threadlight/releases/download/v0.1.1/Threadlight-0.1.1-macOS-arm64.dmg)** · [版本说明](https://github.com/shawnweasley/threadlight/releases/tag/v0.1.1)
 
 ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple)
 ![Swift 6](https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white)
@@ -27,7 +27,9 @@
 - **一眼看状态**：旋转圆环表示运行中，绿色勾号表示已结束。
 - **独立分批编号**：Codex 用 `1 2 3`，Claude Code 用 `α β γ`；各自列表清空后重新从 `1` / `α` 开始，仍有旧对话时继续递增。
 - **保留完成未读**：查看后移出列表，同一批次内再次运行时沿用原编号。
+- **统计独立对话**：Codex 包括手动创建和由代理创建的独立桌面对话，不包含内部子代理；显示运行中及完成未读的对话，不是所有打开的聊天数量。
 - **可固定的置顶列表**：支持拖动、调整宽度，窄窗口自动隐藏右侧状态文字。
+- **可选自启动**：在菜单栏下拉菜单勾选“允许开机自启动”，登录 Mac 时自动启动；取消勾选即可关闭。
 - **本地只读**：无网络请求、无遥测，不修改 Codex 或 Claude 的设置。
 
 Claude 仅支持桌面端 **Code** 会话。
@@ -36,7 +38,7 @@ Claude 仅支持桌面端 **Code** 会话。
 
 需要 **macOS 13+**。当前 DMG 为 **Apple 芯片版**。
 
-1. [下载 DMG 安装包](https://github.com/shawnweasley/threadlight/releases/download/v0.1.0/Threadlight-0.1.0-macOS-arm64.dmg)，将应用拖入「应用程序」。
+1. [下载 DMG 安装包](https://github.com/shawnweasley/threadlight/releases/download/v0.1.1/Threadlight-0.1.1-macOS-arm64.dmg)，将应用拖入「应用程序」。
 2. 启动「对话灯」，从菜单栏查看任务，或选择「固定列表」。
 
 当前为预览版，采用本地签名，尚未经过 Apple 公证。

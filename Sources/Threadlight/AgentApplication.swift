@@ -6,6 +6,7 @@ final class AgentApplication: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let surfaces = StableMenu()
     private let queue = DispatchQueue(label: "Threadlight.metadata", qos: .utility)
     private let monitor = LocalMonitor()
+    private let loginItem = LoginItemController()
     private let ledgerFile = MonitorPaths.local.storage.appendingPathComponent("ledger-v1.json")
     private var ledger = ActivityLedger()
     private var rows: [DisplayRow] = []
@@ -105,17 +106,18 @@ final class AgentApplication: NSObject, NSApplicationDelegate, NSMenuDelegate {
         for row in rows {
             let image = row.phase == .working ? workingFrames[frame % workingFrames.count] : complete
             floating?.canvas.buttons[row.id]?.image = image
-            if isMenuOpen { surfaces.taskItems[row.id]?.image = image }
+            if isMenuOpen { surfaces.updateTaskMarker(row.id, image: image) }
         }
         // If a read task vanished during tracking, keep its row stable and completed.
         if isMenuOpen {
-            for (id, menuItem) in surfaces.taskItems where !rows.contains(where: { $0.id == id }) { menuItem.image = complete }
+            for id in surfaces.taskItems.keys where !rows.contains(where: { $0.id == id }) { surfaces.updateTaskMarker(id, image: complete) }
         }
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
-        surfaces.open(rows: rows, pinned: floating != nil, target: self,
-                      rowAction: #selector(openMenuRow(_:)), pinAction: #selector(toggleList), quitAction: #selector(quit))
+        surfaces.open(rows: rows, pinned: floating != nil, loginStatus: loginItem.status, target: self,
+                      rowAction: #selector(openMenuRow(_:)), pinAction: #selector(toggleList),
+                      loginAction: #selector(toggleLoginItem), quitAction: #selector(quit))
         drawFrame()
     }
     func menuWillOpen(_ menu: NSMenu) { isMenuOpen = true; surfaces.beginTracking(); drawFrame() }
@@ -128,6 +130,30 @@ final class AgentApplication: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if let row = rows.first(where: { $0.id.client.rawValue + ":" + $0.id.rawValue == sender.identifier?.rawValue }), let url = row.id.link { NSWorkspace.shared.open(url) }
     }
     @objc private func toggleList() { if let floating { floating.panel.close() } else { showList() } }
+    @objc private func toggleLoginItem() {
+        let status = loginItem.status
+        do {
+            try loginItem.setEnabled(status != .enabled && status != .requiresApproval)
+            surfaces.updateLoginStatus(loginItem.status)
+            if loginItem.status == .requiresApproval {
+                let alert = NSAlert()
+                alert.messageText = "自启动需要系统允许"
+                alert.informativeText = "请在系统设置的“通用 → 登录项”中允许对话灯。"
+                alert.addButton(withTitle: "打开系统设置")
+                alert.addButton(withTitle: "稍后")
+                NSApp.activate(ignoringOtherApps: true)
+                if alert.runModal() == .alertFirstButtonReturn { loginItem.openSystemSettings() }
+            }
+        } catch {
+            surfaces.updateLoginStatus(loginItem.status)
+            let alert = NSAlert()
+            alert.messageText = "无法更改开机自启动"
+            alert.informativeText = "请将对话灯放在“应用程序”文件夹后重试。\n\(error.localizedDescription)"
+            alert.addButton(withTitle: "好")
+            NSApp.activate(ignoringOtherApps: true)
+            alert.runModal()
+        }
+    }
     private func showList() {
         let list = FloatingList()
         list.onClose = { [weak self] in

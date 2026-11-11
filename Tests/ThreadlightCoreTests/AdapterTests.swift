@@ -82,6 +82,66 @@ import Testing
         #expect(try ThreadDatabase.rows(at: path, watched: []).map(\.id) == ["a", "new"])
     }
 
+    @Test func independentAgentCreatedChatsCountAlongsideUserChatsAndKeepTheirLifecycle() throws {
+        let scratch = try Scratch(); defer { scratch.remove() }
+        let path = scratch.file("state_5.sqlite")
+        var db: OpaquePointer?; #expect(sqlite3_open(path.path, &db) == SQLITE_OK)
+        defer { sqlite3_close(db) }
+        #expect(sqlite3_exec(db, """
+        CREATE TABLE threads(id TEXT, title TEXT, rollout_path TEXT, originator TEXT, thread_source TEXT, archived INTEGER, updated_at INTEGER);
+        """, nil, nil, nil) == SQLITE_OK)
+        let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+        func insert(_ id: String, source: String, updated: Int, originator: String = "Codex Desktop") throws {
+            let log = scratch.file(id + ".jsonl")
+            try event("task_started").write(to: log)
+            var statement: OpaquePointer?
+            #expect(sqlite3_prepare_v2(db, "INSERT INTO threads VALUES(?, 'Synthetic chat', ?, ?, ?, 0, ?)", -1, &statement, nil) == SQLITE_OK)
+            defer { sqlite3_finalize(statement) }
+            for (i, value) in [id, log.path, originator, source].enumerated() {
+                sqlite3_bind_text(statement, Int32(i + 1), value, -1, transient)
+            }
+            sqlite3_bind_int(statement, 5, Int32(updated))
+            #expect(sqlite3_step(statement) == SQLITE_DONE)
+        }
+        for id in ["user-a", "user-b"] { try insert(id, source: "user", updated: 1) }
+        for id in ["agent-a", "agent-b"] { try insert(id, source: "agent_created_thread", updated: 1) }
+        // More than a discovery page of newer children must not displace their parents.
+        for i in 0..<40 { try insert("child-\(i)", source: "subagent", updated: 100) }
+        try insert("cli", source: "agent_created_thread", updated: 100, originator: "Codex CLI")
+        try insert("future", source: "unknown_source", updated: 100)
+        let paths = MonitorPaths(codex: scratch.url, claude: scratch.file("none"), desktop: scratch.file("none"), storage: scratch.file("cache"))
+        let monitor = LocalMonitor(paths: paths, persistentCache: false)
+        let first = monitor.poll()
+        #expect(first.readings.map(\.id.rawValue) == ["agent-a", "agent-b", "user-a", "user-b"])
+        #expect(first.readings.allSatisfy { $0.phase == .working })
+        #expect(first.logBytes == 4 * event("task_started").count)
+        var ledger = ActivityLedger()
+        let now = Date()
+        ledger.apply(first.readings, at: now)
+        #expect(ledger.visible.count == 4)
+        #expect(monitor.poll(watched: ledger.watched).logBytes == 0)
+
+        let log = scratch.file("agent-a.jsonl")
+        let writer = try FileHandle(forWritingTo: log)
+        defer { try? writer.close() }
+        try writer.seekToEnd()
+        let completion = event("task_complete", at: 2)
+        try writer.write(contentsOf: completion.dropLast())
+        ledger.apply(monitor.poll(watched: ledger.watched).readings, at: now.addingTimeInterval(1))
+        #expect(ledger.visible.allSatisfy { $0.phase == .working })
+        try writer.write(contentsOf: Data("\n".utf8))
+        ledger.apply(monitor.poll(watched: ledger.watched).readings, at: now.addingTimeInterval(2))
+        #expect(ledger.visible.filter { $0.phase == .working }.count == 3)
+        #expect(ledger.visible.first { $0.id.rawValue == "agent-a" }?.phase == .finished)
+        try writer.write(contentsOf: event("task_started", at: 3))
+        ledger.apply(monitor.poll(watched: ledger.watched).readings, at: now.addingTimeInterval(3))
+        #expect(ledger.visible.filter { $0.phase == .working }.count == 4)
+        #expect(sqlite3_exec(db, "UPDATE threads SET archived=1 WHERE id='agent-a'", nil, nil, nil) == SQLITE_OK)
+        ledger.apply(monitor.poll(watched: ledger.watched).readings, at: now.addingTimeInterval(4))
+        #expect(ledger.visible.count == 3)
+        #expect(!ledger.visible.contains { $0.id.rawValue == "agent-a" })
+    }
+
     @Test func modernReadMarksAreScopedToCurrentIdentity() throws {
         let scratch = try Scratch(); defer { scratch.remove() }
         let config = "model_provider = \"synthetic\"\n[model_providers.synthetic]\nrequires_openai_auth = false\n"
@@ -133,6 +193,28 @@ import Testing
         let missing = monitor.poll(watched: [id])
         let again = monitor.poll(watched: [id])
         #expect(missing.readings.first?.eventTime == again.readings.first?.eventTime)
+    }
+
+    @Test func fourIndependentClaudeChatsAreCountedAndDuplicateFilesDoNotInflateCount() throws {
+        let scratch = try Scratch(); defer { scratch.remove() }
+        let dir = scratch.file("sessions")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        for (index, status) in ["busy", "waiting", "waiting_for_permission", "waiting_for_input"].enumerated() {
+            let state: [String: Any] = ["pid": 1234 + index, "entrypoint": "claude-desktop", "kind": "interactive",
+                                        "hostSessionId": "synthetic-\(index)", "status": status, "statusUpdatedAt": 1000]
+            let data = try JSONSerialization.data(withJSONObject: state)
+            try data.write(to: dir.appendingPathComponent("\(index).json"))
+            try data.write(to: dir.appendingPathComponent("\(index)-duplicate.json"))
+        }
+        let paths = MonitorPaths(codex: scratch.file("none"), claude: scratch.url, desktop: scratch.file("none"), storage: scratch.file("cache"))
+        let monitor = LocalMonitor(paths: paths, persistentCache: false, processIsAlive: { _ in true })
+        let report = monitor.poll()
+        var ledger = ActivityLedger()
+        ledger.apply(report.readings)
+        #expect(ledger.visible.count == 4)
+        #expect(ledger.visible.allSatisfy { $0.phase == .working && $0.id.client == .claude })
+        #expect(report.metadataBytes <= 8 * 4096 && report.logBytes == 0)
+        #expect(monitor.poll(watched: ledger.watched).metadataBytes == 0)
     }
 
     @Test func ignoresNonDesktopAndDeadHistoricalSessions() throws {
